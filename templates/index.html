@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 AI Image Caption Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            background: #f8f9ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-area.dragover {
+            background: #e8ecff;
+            border-color: #764ba2;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #preview {
+            max-width: 100%;
+            max-height: 400px;
+            margin: 20px auto;
+            display: none;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .result-box {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .result-box.success {
+            border-left: 5px solid #4caf50;
+        }
+        
+        .result-box.error {
+            border-left: 5px solid #f44336;
+        }
+        
+        .result-box.warning {
+            border-left: 5px solid #ff9800;
+        }
+        
+        .caption-text {
+            font-size: 1.3em;
+            color: #333;
+            margin-top: 10px;
+            font-style: italic;
+        }
+        
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .stats {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI Image Caption Generator</h1>
+        <p class="subtitle">Upload an image and get AI-generated captions instantly!</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <h2>📸 Click or Drag & Drop Image Here</h2>
+            <p>Supported formats: JPG, PNG, GIF, WEBP (Max 16MB)</p>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+        
+        <div style="text-align: center;">
+            <button class="btn" id="uploadBtn" onclick="document.getElementById('fileInput').click()">
+                📁 Choose Image
+            </button>
+            <button class="btn" id="captionBtn" onclick="generateCaption()" disabled>
+                ✨ Generate Caption
+            </button>
+        </div>
+        
+        <img id="preview" alt="Preview">
+        
+        <div class="loader" id="loader"></div>
+        
+        <div class="result-box" id="resultBox">
+            <h3 id="resultTitle"></h3>
+            <p class="caption-text" id="captionText"></p>
+        </div>
+        
+        <div class="stats" id="stats"></div>
+    </div>
+    
+    <script>
+        let selectedFile = null;
+        
+        // File input change handler
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            handleFileSelect(e.target.files[0]);
+        });
+        
+        // Drag and drop handlers
+        const uploadArea = document.getElementById('uploadArea');
+        
+        uploadArea.addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFileSelect(e.dataTransfer.files[0]);
+        });
+        
+        function handleFileSelect(file) {
+            if (!file) return;
+            
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                alert('❌ Please select an image file');
+                return;
+            }
+            
+            // Validate file size (16MB)
+            if (file.size > 16 * 1024 * 1024) {
+                alert('❌ File too large. Maximum size is 16MB');
+                return;
+            }
+            
+            selectedFile = file;
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('preview');
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+            
+            // Enable caption button
+            document.getElementById('captionBtn').disabled = false;
+            
+            // Hide previous results
+            document.getElementById('resultBox').style.display = 'none';
+        }
+        
+        async function generateCaption() {
+            if (!selectedFile) {
+                alert('❌ Please select an image first');
+                return;
+            }
+            
+            // Show loader
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('resultBox').style.display = 'none';
+            document.getElementById('captionBtn').disabled = true;
+            
+            try {
+                // Create form data
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                
+                // Send request to backend
+                const response = await fetch('/api/caption', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                // Hide loader
+                document.getElementById('loader').style.display = 'none';
+                
+                // Show result
+                const resultBox = document.getElementById('resultBox');
+                const resultTitle = document.getElementById('resultTitle');
+                const captionText = document.getElementById('captionText');
+                
+                resultBox.style.display = 'block';
+                resultBox.className = 'result-box ' + data.status;
+                
+                if (data.status === 'success') {
+                    resultTitle.textContent = '✅ Caption Generated Successfully!';
+                    captionText.textContent = `"${data.caption}"`;
+                } else if (data.status === 'warning') {
+                    resultTitle.textContent = '⚠️ Warning';
+                    captionText.textContent = data.message;
+                } else {
+                    resultTitle.textContent = '❌ Error';
+                    captionText.textContent = data.message;
+                }
+                
+                // Update stats
+                loadStats();
+                
+            } catch (error) {
+                document.getElementById('loader').style.display = 'none';
+                alert('❌ Network error: ' + error.message);
+            }
+            
+            document.getElementById('captionBtn').disabled = false;
+        }
+        
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    document.getElementById('stats').innerHTML = `
+                        📊 <strong>Stats:</strong> 
+                        ${data.stats.total_requests} requests | 
+                        ${data.stats.successful_captions} successful | 
+                        ${data.stats.success_rate} success rate
+                    `;
+                }
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+        
+        // Load stats on page load
+        loadStats();
+    </script>
+</body>
+</html>
