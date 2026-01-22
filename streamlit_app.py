@@ -1,5 +1,8 @@
 import streamlit as st
 from PIL import Image
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 import torch
 from transformers import (
     BlipForConditionalGeneration,
